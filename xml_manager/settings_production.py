@@ -10,8 +10,11 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', SECRET_KEY)
 
 # Allowed hosts - lê da variável de ambiente
-allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', 'fiscal.avila.inc,*.azurecontainer.io')
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', 'fiscal.avila.inc,*.azurecontainer.io,172.171.151.179')
 ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
+# Adiciona '*' em DEBUG mode para facilitar troubleshooting
+if DEBUG:
+    ALLOWED_HOSTS.append('*')
 
 # HTTPS/Security - Desabilitado para HTTP por enquanto
 SECURE_SSL_REDIRECT = False

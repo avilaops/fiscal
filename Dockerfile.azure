@@ -32,8 +32,8 @@ RUN python manage.py collectstatic --noinput --settings=xml_manager.settings_pro
 # Expose port
 EXPOSE 8000
 
-# Health check script
-RUN echo '#!/bin/bash\n\
+# Health check script - usa /bin/sh pois bash não está disponível em python:3.12-slim
+RUN echo '#!/bin/sh\n\
 echo "Starting Django application..."\n\
 python manage.py migrate --noinput --settings=xml_manager.settings_production || echo "Migration failed, continuing..."\n\
 echo "Starting Gunicorn..."\n\
@@ -41,4 +41,4 @@ exec gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 300 --access-logfile - -
 ' > /app/start.sh && chmod +x /app/start.sh
 
 # Run with startup script
-CMD ["/app/start.sh"]
+CMD ["/bin/sh", "/app/start.sh"]

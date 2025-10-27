@@ -21,34 +21,22 @@ SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-# Database - MongoDB Atlas or SQLite
-USE_MONGODB = os.environ.get('USE_MONGODB', 'false').lower() == 'true'
+# Database - SQLite for now (MongoDB via pymongo direct)
+# Note: djongo has dependency conflicts with current Django version
+# Using SQLite for Django ORM, MongoDB via direct pymongo for specific operations
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
 
+# MongoDB configuration for direct pymongo usage
+USE_MONGODB = os.environ.get('USE_MONGODB', 'false').lower() == 'true'
 if USE_MONGODB:
-    # MongoDB Configuration
     MONGODB_CONNECTION_STRING = os.environ.get('MONGODB_CONNECTION_STRING', '')
     MONGODB_DATABASE = os.environ.get('MONGODB_DATABASE', 'aviladevops_fiscal')
-
-    # Djongo configuration
-    DATABASES = {
-        'default': {
-            'ENGINE': 'djongo',
-            'NAME': MONGODB_DATABASE,
-            'CLIENT': {
-                'host': MONGODB_CONNECTION_STRING,
-            }
-        }
-    }
-else:
-    # SQLite para testes
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': BASE_DIR / 'db.sqlite3',
-        }
-    }
-
-# Static files
+    # Use pymongo directly in views/models as needed# Static files
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATIC_URL = '/static/'
 

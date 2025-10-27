@@ -1,0 +1,98 @@
+name: Deploy Fiscal App to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.py'
+      - 'requirements*.txt'
+      - 'Dockerfile.azure'
+      - '.github/workflows/deploy-azure.yml'
+  workflow_dispatch:
+
+env:
+  AZURE_CONTAINER_REGISTRY: fiscalavilaregistry
+  AZURE_RESOURCE_GROUP: Avila
+  CONTAINER_NAME: fiscal-avila
+  IMAGE_NAME: fiscal
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+    name: Build and Deploy to Azure Container Instance
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}"
+            }
+
+      - name: Build and Push to ACR
+        run: |
+          az acr build \
+            --registry ${{ env.AZURE_CONTAINER_REGISTRY }} \
+            --image ${{ env.IMAGE_NAME }}:${{ github.sha }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
+            --file Dockerfile.azure \
+            .
+
+      - name: Delete existing container (if exists)
+        continue-on-error: true
+        run: |
+          az container delete \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.CONTAINER_NAME }} \
+            --yes
+
+      - name: Get ACR credentials
+        id: acr-creds
+        run: |
+          ACR_PASSWORD=$(az acr credential show \
+            --name ${{ env.AZURE_CONTAINER_REGISTRY }} \
+            --query "passwords[0].value" \
+            --output tsv)
+          echo "::add-mask::$ACR_PASSWORD"
+          echo "password=$ACR_PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Azure Container Instance
+        run: |
+          az container create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.CONTAINER_NAME }} \
+            --image ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io/${{ env.IMAGE_NAME }}:latest \
+            --registry-login-server ${{ env.AZURE_CONTAINER_REGISTRY }}.azurecr.io \
+            --registry-username ${{ env.AZURE_CONTAINER_REGISTRY }} \
+            --registry-password ${{ steps.acr-creds.outputs.password }} \
+            --dns-name-label fiscal-avila \
+            --ports 8000 \
+            --os-type Linux \
+            --location eastus \
+            --cpu 1 \
+            --memory 1.5 \
+            --environment-variables \
+              DJANGO_SETTINGS_MODULE=xml_manager.settings_production \
+              USE_MONGODB=true \
+              MONGODB_CONNECTION_STRING="${{ secrets.MONGO_ATLAS_URI }}" \
+              OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+              CLOUDFLARE_API_TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              ALLOWED_HOSTS="fiscal.avila.inc,*.azurecontainer.io"
+
+      - name: Get Container URL
+        run: |
+          FQDN=$(az container show \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --name ${{ env.CONTAINER_NAME }} \
+            --query ipAddress.fqdn \
+            --output tsv)
+          echo "🚀 Application deployed at: http://$FQDN:8000"
+          echo "::notice::Application URL: http://$FQDN:8000"

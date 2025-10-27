@@ -1,0 +1,12 @@
+dispatch:
+  # Route fiscal.avila.inc to the fiscal service
+  - url: "fiscal.avila.inc/*"
+    service: fiscal
+  - url: "www.fiscal.avila.inc/*"
+    service: fiscal
+
+  # Legacy domain routing (aviladevops.com.br)
+  - url: "fiscal.aviladevops.com.br/*"
+    service: fiscal
+  - url: "www.fiscal.aviladevops.com.br/*"
+    service: fiscal

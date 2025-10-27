@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first
-COPY requirements_minimal.txt requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application
 COPY . .
@@ -20,12 +21,24 @@ COPY . .
 # Set environment variables
 ENV DJANGO_SETTINGS_MODULE=xml_manager.settings_production
 ENV PYTHONUNBUFFERED=1
+ENV MONGODB_DATABASE=aviladevops_fiscal
 
-# Collect static files
-RUN python manage.py collectstatic --noinput --settings=xml_manager.settings || true
+# Create necessary directories
+RUN mkdir -p /app/staticfiles /app/media
+
+# Collect static files (com tratamento de erro)
+RUN python manage.py collectstatic --noinput --settings=xml_manager.settings_production || echo "Collectstatic failed, continuing..."
 
 # Expose port
 EXPOSE 8000
 
-# Run gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "2", "--timeout", "300", "xml_manager.wsgi:application"]
+# Health check script
+RUN echo '#!/bin/bash\n\
+echo "Starting Django application..."\n\
+python manage.py migrate --noinput --settings=xml_manager.settings_production || echo "Migration failed, continuing..."\n\
+echo "Starting Gunicorn..."\n\
+exec gunicorn --bind 0.0.0.0:8000 --workers 2 --timeout 300 --access-logfile - --error-logfile - xml_manager.wsgi:application\n\
+' > /app/start.sh && chmod +x /app/start.sh
+
+# Run with startup script
+CMD ["/app/start.sh"]

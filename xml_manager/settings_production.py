@@ -1,48 +1,52 @@
 """
-Django settings for PRODUCTION deployment on Google Cloud Platform
+Django settings for PRODUCTION deployment on Azure Container Instances
 """
 
 import os
 from .settings import *
 
 # SECURITY
-DEBUG = False
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() == 'true'
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', SECRET_KEY)
 
-# Allowed hosts - adicione seu domínio
-ALLOWED_HOSTS = [
-    '.appspot.com',
-    'fiscal.avila.inc',
-    'www.fiscal.avila.inc',
-    'fiscal.aviladevops.com.br',
-    'www.fiscal.aviladevops.com.br',
-]
+# Allowed hosts - lê da variável de ambiente
+allowed_hosts_env = os.environ.get('ALLOWED_HOSTS', 'fiscal.avila.inc,*.azurecontainer.io')
+ALLOWED_HOSTS = [h.strip() for h in allowed_hosts_env.split(',') if h.strip()]
 
-# HTTPS/Security
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# HTTPS/Security - Desabilitado para HTTP por enquanto
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-# Database - Cloud SQL
-# Se quiser usar Cloud SQL, descomente e configure:
-"""
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'xml_fiscais'),
-        'USER': os.environ.get('DB_USER', 'root'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
-        'HOST': os.environ.get('DB_HOST', '/cloudsql/PROJECT_ID:REGION:INSTANCE'),
-        'PORT': '3306',
-        'OPTIONS': {
-            'charset': 'utf8mb4',
+# Database - MongoDB Atlas or SQLite
+USE_MONGODB = os.environ.get('USE_MONGODB', 'false').lower() == 'true'
+
+if USE_MONGODB:
+    # MongoDB Configuration
+    MONGODB_CONNECTION_STRING = os.environ.get('MONGODB_CONNECTION_STRING', '')
+    MONGODB_DATABASE = os.environ.get('MONGODB_DATABASE', 'aviladevops_fiscal')
+
+    # Djongo configuration
+    DATABASES = {
+        'default': {
+            'ENGINE': 'djongo',
+            'NAME': MONGODB_DATABASE,
+            'CLIENT': {
+                'host': MONGODB_CONNECTION_STRING,
+            }
         }
     }
-}
-"""
+else:
+    # SQLite para testes
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Static files
 STATIC_ROOT = BASE_DIR / 'staticfiles'
@@ -79,12 +83,23 @@ LOGGING = {
 
 # CORS - Em produção, especifique os domínios permitidos
 CORS_ALLOWED_ORIGINS = [
+    "http://fiscal.avila.inc",
+    "http://fiscal.avila.inc:8000",
     "https://fiscal.avila.inc",
     "https://www.fiscal.avila.inc",
     "https://fiscal.aviladevops.com.br",
     "https://www.fiscal.aviladevops.com.br",
     "capacitor://localhost",
     "ionic://localhost",
+]
+
+# CSRF Trusted Origins
+CSRF_TRUSTED_ORIGINS = [
+    "http://fiscal.avila.inc",
+    "http://fiscal.avila.inc:8000",
+    "https://fiscal.avila.inc",
+    "http://*.azurecontainer.io",
+    "http://*.azurecontainer.io:8000",
 ]
 
 # Session timeout
